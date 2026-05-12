@@ -8,6 +8,13 @@ import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ChatPage from './pages/ChatPage';
 import PortfolioPage from './pages/PortfolioPage';
+import {
+  AssetDetailPage,
+  ContentQueuePage,
+  CreatorManagePage,
+  QualityDashboard,
+  SignalOverviewPage,
+} from './pages/signal';
 import { ApiErrorAlert, Shell } from './components/common';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useAgentChatStore } from './stores/agentChatStore';
@@ -65,6 +72,11 @@ const AppContent: React.FC = () => {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/portfolio" element={<PortfolioPage />} />
         <Route path="/backtest" element={<BacktestPage />} />
+        <Route path="/signals" element={<SignalOverviewPage />} />
+        <Route path="/signals/quality" element={<QualityDashboard />} />
+        <Route path="/signals/content" element={<ContentQueuePage />} />
+        <Route path="/signals/asset/:identifier" element={<AssetDetailPage />} />
+        <Route path="/signals/creators" element={<CreatorManagePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
