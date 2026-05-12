@@ -29,7 +29,8 @@ export interface CreatorUpdate {
   isActive?: boolean;
   manualWeight?: number;
   fetchIntervalMin?: number;
-  notes?: string;
+  /** Use `null` to clear optional text fields. */
+  notes?: string | null;
 }
 
 export interface QualityStats {
