@@ -193,6 +193,12 @@ def create_app(static_dir: Optional[Path] = None) -> FastAPI:
     # ============================================================
     
     app.include_router(api_v1_router)
+    # Initialize signal system tables
+    try:
+        from src.signal import init_signal_db
+        init_signal_db()
+    except Exception:
+        pass
     add_error_handlers(app)
     
     # ============================================================
