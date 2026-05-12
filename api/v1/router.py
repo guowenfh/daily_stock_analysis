@@ -21,7 +21,11 @@ from api.v1.endpoints import (
     agent,
     usage,
     portfolio,
+    signal_asset,
+    signal_content,
     signal_creators,
+    signal_overview,
+    signal_pipeline,
     signal_quality,
 )
 
@@ -92,4 +96,28 @@ router.include_router(
     signal_quality.router,
     prefix="/signals/quality",
     tags=["Signal - Quality"],
+)
+
+router.include_router(
+    signal_content.router,
+    prefix="/signals/contents",
+    tags=["Signal - Content"],
+)
+
+router.include_router(
+    signal_overview.router,
+    prefix="/signals",
+    tags=["Signal - Overview"],
+)
+
+router.include_router(
+    signal_asset.router,
+    prefix="/signals/assets",
+    tags=["Signal - Asset"],
+)
+
+router.include_router(
+    signal_pipeline.router,
+    prefix="/signals/pipeline",
+    tags=["Signal - Pipeline"],
 )
