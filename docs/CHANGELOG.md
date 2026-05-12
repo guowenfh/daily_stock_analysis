@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] Docker 启动入口自动修复 `data` / `logs` / `reports` 挂载目录权限并降权运行，文档化的 Compose `exec` 手动命令显式使用 `dsa` 用户，避免普通部署需要手动 `chown` / `chmod`。
 - [新功能] 信号子系统新增 `SignalPipeline` 编排 collect→enrich→extract→build_events→compute_stats，以及基于 APScheduler 的 `SignalScheduler`；补充依赖 `APScheduler`。
 - [新功能] API v1 新增信号内容队列、事件总览、资产维度与流水线控制端点（`/api/v1/signals/contents`、`/api/v1/signals/events`、`/api/v1/signals/stats`、`/api/v1/signals/assets`、`/api/v1/signals/pipeline`）。
+- [新功能] Web 信号模块：内容队列页、信号总览页与标的详情页接入上述 API，并对响应字段做 snake_case → camelCase 映射与列表查询参数对齐。
 
 ## [3.16.0] - 2026-05-10
 

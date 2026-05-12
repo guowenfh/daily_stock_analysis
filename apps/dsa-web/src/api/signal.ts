@@ -11,6 +11,7 @@ import type {
   ContentItem,
   Mention,
   SignalEvent,
+  AssetDetailOverview,
   PipelineStatus,
 } from '../types/signal';
 
@@ -104,6 +105,178 @@ function mapCreatorStats(raw: CreatorStatsSnake): CreatorStats {
     failed: raw.failed,
     successRate: raw.success_rate,
     lastFetchAt: raw.last_fetch_at,
+  };
+}
+
+function isoOrNull(v: string | null | undefined): string | null {
+  if (v == null || v === '') return null;
+  return v;
+}
+
+type ContentItemSnake = {
+  id: number;
+  creator_name: string;
+  platform_content_id: string;
+  content_type: string;
+  display_type: string;
+  title: string | null;
+  status: string;
+  failure_stage: string | null;
+  failure_reason: string | null;
+  has_mentions: boolean;
+  published_at: string | null;
+  created_at: string | null;
+};
+
+function mapContentItem(raw: ContentItemSnake): ContentItem {
+  return {
+    id: raw.id,
+    creatorName: raw.creator_name,
+    platformContentId: raw.platform_content_id,
+    contentType: raw.content_type,
+    displayType: raw.display_type,
+    title: raw.title,
+    status: raw.status,
+    failureStage: raw.failure_stage,
+    failureReason: raw.failure_reason,
+    hasMentions: raw.has_mentions,
+    publishedAt: isoOrNull(raw.published_at as string | null),
+    createdAt: isoOrNull(raw.created_at as string | null),
+  };
+}
+
+type SignalEventSnake = {
+  id: number;
+  asset_name: string;
+  asset_code: string | null;
+  asset_type: string;
+  market: string;
+  event_type: string;
+  event_date: string;
+  score: number | null;
+  bullish_count: number;
+  bearish_count: number;
+  neutral_count: number;
+  creator_count: number;
+  mention_count: number;
+  top_creator_name: string | null;
+  evidence: Record<string, unknown>[] | null;
+  created_at: string | null;
+};
+
+function mapSignalEvent(raw: SignalEventSnake): SignalEvent {
+  return {
+    id: raw.id,
+    assetName: raw.asset_name,
+    assetCode: raw.asset_code,
+    assetType: raw.asset_type,
+    market: raw.market,
+    eventType: raw.event_type,
+    eventDate: typeof raw.event_date === 'string' ? raw.event_date : String(raw.event_date),
+    score: raw.score,
+    bullishCount: raw.bullish_count,
+    bearishCount: raw.bearish_count,
+    neutralCount: raw.neutral_count,
+    creatorCount: raw.creator_count,
+    mentionCount: raw.mention_count,
+    topCreatorName: raw.top_creator_name,
+    evidence: raw.evidence,
+    createdAt: isoOrNull(raw.created_at as string | null),
+  };
+}
+
+type MentionSnake = {
+  id: number;
+  content_id: number;
+  creator_id: number;
+  creator_name: string;
+  asset_name: string;
+  asset_code: string | null;
+  asset_type: string;
+  market: string;
+  sentiment: string;
+  confidence: number;
+  is_primary: boolean;
+  reasoning: string | null;
+  trade_advice: string | null;
+  key_levels: Record<string, unknown> | null;
+  quality_flags: string[];
+  source_url: string | null;
+  published_at: string | null;
+  created_at: string | null;
+};
+
+function mapMention(raw: MentionSnake): Mention {
+  const levels = raw.key_levels;
+  let keyLevels: Record<string, number[]> | null = null;
+  if (levels && typeof levels === 'object') {
+    keyLevels = {};
+    for (const [k, v] of Object.entries(levels)) {
+      if (Array.isArray(v)) {
+        keyLevels[k] = v.map((x) => (typeof x === 'number' ? x : Number(x)));
+      }
+    }
+    if (Object.keys(keyLevels).length === 0) keyLevels = null;
+  }
+
+  return {
+    id: raw.id,
+    contentId: raw.content_id,
+    creatorId: raw.creator_id,
+    creatorName: raw.creator_name,
+    assetName: raw.asset_name,
+    assetCode: raw.asset_code,
+    assetType: raw.asset_type,
+    market: raw.market,
+    sentiment: raw.sentiment,
+    confidence: raw.confidence,
+    isPrimary: raw.is_primary,
+    reasoning: raw.reasoning,
+    tradeAdvice: raw.trade_advice,
+    keyLevels,
+    qualityFlags: raw.quality_flags ?? [],
+    sourceUrl: raw.source_url,
+    publishedAt: isoOrNull(raw.published_at as string | null),
+    createdAt: isoOrNull(raw.created_at as string | null),
+  };
+}
+
+type AssetDetailSnake = {
+  asset_name: string;
+  asset_code: string | null;
+  asset_type: string;
+  market: string;
+  event: {
+    event_type: string;
+    score: number | null;
+    event_date: string;
+  } | null;
+  sentiment_summary: { bullish: number; bearish: number; neutral: number };
+  creator_count: number;
+  mention_count: number;
+  creators: { id: number; name: string; weight: number }[];
+};
+
+function mapAssetDetail(raw: AssetDetailSnake): AssetDetailOverview {
+  return {
+    assetName: raw.asset_name,
+    assetCode: raw.asset_code,
+    assetType: raw.asset_type,
+    market: raw.market,
+    event: raw.event
+      ? {
+          eventType: raw.event.event_type,
+          score: raw.event.score,
+          eventDate:
+            typeof raw.event.event_date === 'string'
+              ? raw.event.event_date
+              : String(raw.event.event_date),
+        }
+      : null,
+    sentimentSummary: raw.sentiment_summary,
+    creatorCount: raw.creator_count,
+    mentionCount: raw.mention_count,
+    creators: raw.creators ?? [],
   };
 }
 
@@ -203,7 +376,18 @@ export const signalApi = {
       limit?: number;
       offset?: number;
     }
-  ) => apiClient.get<ContentItem[]>(`${BASE}/contents`, { params }).then((r) => r.data),
+  ) =>
+    apiClient
+      .get<ContentItemSnake[]>(`${BASE}/contents`, {
+        params: {
+          status: params?.status,
+          display_type: params?.displayType,
+          creator_id: params?.creatorId,
+          limit: params?.limit,
+          offset: params?.offset,
+        },
+      })
+      .then((r) => r.data.map(mapContentItem)),
 
   getContent: (id: number) => apiClient.get(`${BASE}/contents/${id}`).then((r) => r.data),
 
@@ -221,9 +405,23 @@ export const signalApi = {
       limit?: number;
       offset?: number;
     }
-  ) => apiClient.get<SignalEvent[]>(`${BASE}/events`, { params }).then((r) => r.data),
+  ) =>
+    apiClient
+      .get<SignalEventSnake[]>(`${BASE}/events`, {
+        params: {
+          event_type: params?.eventType,
+          market: params?.market,
+          asset_type: params?.assetType,
+          date_from: params?.dateFrom,
+          date_to: params?.dateTo,
+          limit: params?.limit,
+          offset: params?.offset,
+        },
+      })
+      .then((r) => r.data.map(mapSignalEvent)),
 
-  getEvent: (id: number) => apiClient.get<SignalEvent>(`${BASE}/events/${id}`).then((r) => r.data),
+  getEvent: (id: number) =>
+    apiClient.get<SignalEventSnake>(`${BASE}/events/${id}`).then((r) => mapSignalEvent(r.data)),
 
   getOverviewStats: (days?: number) =>
     apiClient
@@ -231,15 +429,24 @@ export const signalApi = {
       .then((r) => mapQualityStats(r.data)),
 
   getAsset: (identifier: string) =>
-    apiClient.get(`${BASE}/assets/${encodeURIComponent(identifier)}`).then((r) => r.data),
+    apiClient
+      .get<AssetDetailSnake>(`${BASE}/assets/${encodeURIComponent(identifier)}`)
+      .then((r) => mapAssetDetail(r.data)),
 
   getAssetMentions: (
     identifier: string,
     params?: { sentiment?: string; creatorId?: number; limit?: number; offset?: number }
   ) =>
     apiClient
-      .get<Mention[]>(`${BASE}/assets/${encodeURIComponent(identifier)}/mentions`, { params })
-      .then((r) => r.data),
+      .get<MentionSnake[]>(`${BASE}/assets/${encodeURIComponent(identifier)}/mentions`, {
+        params: {
+          sentiment: params?.sentiment,
+          creator_id: params?.creatorId,
+          limit: params?.limit,
+          offset: params?.offset,
+        },
+      })
+      .then((r) => r.data.map(mapMention)),
 
   getAssetTimeline: (identifier: string) =>
     apiClient.get(`${BASE}/assets/${encodeURIComponent(identifier)}/timeline`).then((r) => r.data),

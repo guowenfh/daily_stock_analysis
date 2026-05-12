@@ -121,6 +121,27 @@ export interface SignalEvent {
   createdAt: string | null;
 }
 
+/** GET /signals/assets/{identifier} — overview for a single asset. */
+export interface AssetDetailOverview {
+  assetName: string;
+  assetCode: string | null;
+  assetType: string;
+  market: string;
+  event: {
+    eventType: string;
+    score: number | null;
+    eventDate: string;
+  } | null;
+  sentimentSummary: {
+    bullish: number;
+    bearish: number;
+    neutral: number;
+  };
+  creatorCount: number;
+  mentionCount: number;
+  creators: { id: number; name: string; weight: number }[];
+}
+
 export interface PipelineStatus {
   running: boolean;
   lastResult: Record<string, unknown> | null;
