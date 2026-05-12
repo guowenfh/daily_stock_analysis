@@ -77,8 +77,12 @@ class BilibiliCollector:
                 data = yaml.safe_load(proc.stdout)
                 if isinstance(data, list):
                     return data
-                if isinstance(data, dict) and "items" in data:
-                    return data["items"]
+                if isinstance(data, dict):
+                    inner = data.get("data", data)
+                    if isinstance(inner, dict) and "items" in inner:
+                        return inner["items"]
+                    if "items" in data:
+                        return data["items"]
                 return data if data else []
             except subprocess.TimeoutExpired:
                 logger.warning("bili feed timed out (attempt %d)", attempt + 1)
@@ -137,13 +141,20 @@ class BilibiliCollector:
         if bvid and not url:
             url = f"https://www.bilibili.com/video/{bvid}"
 
-        pub_ts = item.get("pub_ts") or item.get("publish_time")
         published_at = None
+        pub_ts = item.get("pub_ts") or item.get("publish_time")
         if pub_ts:
             try:
                 published_at = datetime.fromtimestamp(int(pub_ts))
             except (ValueError, TypeError, OSError):
                 pass
+        if published_at is None:
+            pub_at = item.get("published_at", "")
+            if pub_at:
+                try:
+                    published_at = datetime.fromisoformat(pub_at)
+                except (ValueError, TypeError):
+                    pass
 
         initial_status = "pending_enrich" if display_type != "text" else "pending_extract"
 
