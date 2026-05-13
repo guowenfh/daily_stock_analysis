@@ -100,6 +100,29 @@ export interface Mention {
   sourceUrl: string | null;
   publishedAt: string | null;
   createdAt: string | null;
+  contentText?: string;
+  transcriptText?: string;
+  summaryText?: string;
+}
+
+export interface EventListParams {
+  eventType?: string;
+  market?: string;
+  assetType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: 'score' | 'created_at' | 'mention_count';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
+
+export interface MentionListParams {
+  sentiment?: string;
+  creatorId?: number;
+  includeContent?: boolean;
+  limit?: number;
+  offset?: number;
 }
 
 export interface SignalEvent {

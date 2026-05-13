@@ -13,6 +13,8 @@ import type {
   SignalEvent,
   AssetDetailOverview,
   PipelineStatus,
+  EventListParams,
+  MentionListParams,
 } from '../types/signal';
 
 const BASE = '/api/v1/signals';
@@ -204,6 +206,9 @@ type MentionSnake = {
   source_url: string | null;
   published_at: string | null;
   created_at: string | null;
+  content_text?: string | null;
+  transcript_text?: string | null;
+  summary_text?: string | null;
 };
 
 function mapMention(raw: MentionSnake): Mention {
@@ -238,6 +243,15 @@ function mapMention(raw: MentionSnake): Mention {
     sourceUrl: raw.source_url,
     publishedAt: isoOrNull(raw.published_at as string | null),
     createdAt: isoOrNull(raw.created_at as string | null),
+    ...(raw.content_text != null && raw.content_text !== ''
+      ? { contentText: raw.content_text }
+      : {}),
+    ...(raw.transcript_text != null && raw.transcript_text !== ''
+      ? { transcriptText: raw.transcript_text }
+      : {}),
+    ...(raw.summary_text != null && raw.summary_text !== ''
+      ? { summaryText: raw.summary_text }
+      : {}),
   };
 }
 
@@ -395,17 +409,7 @@ export const signalApi = {
 
   ignoreContent: (id: number) => apiClient.post(`${BASE}/contents/${id}/ignore`).then((r) => r.data),
 
-  listEvents: (
-    params?: {
-      eventType?: string;
-      market?: string;
-      assetType?: string;
-      dateFrom?: string;
-      dateTo?: string;
-      limit?: number;
-      offset?: number;
-    }
-  ) =>
+  listEvents: (params?: EventListParams) =>
     apiClient
       .get<SignalEventSnake[]>(`${BASE}/events`, {
         params: {
@@ -414,6 +418,8 @@ export const signalApi = {
           asset_type: params?.assetType,
           date_from: params?.dateFrom,
           date_to: params?.dateTo,
+          sort_by: params?.sortBy,
+          sort_order: params?.sortOrder,
           limit: params?.limit,
           offset: params?.offset,
         },
@@ -433,15 +439,13 @@ export const signalApi = {
       .get<AssetDetailSnake>(`${BASE}/assets/${encodeURIComponent(identifier)}`)
       .then((r) => mapAssetDetail(r.data)),
 
-  getAssetMentions: (
-    identifier: string,
-    params?: { sentiment?: string; creatorId?: number; limit?: number; offset?: number }
-  ) =>
+  getAssetMentions: (identifier: string, params?: MentionListParams) =>
     apiClient
       .get<MentionSnake[]>(`${BASE}/assets/${encodeURIComponent(identifier)}/mentions`, {
         params: {
           sentiment: params?.sentiment,
           creator_id: params?.creatorId,
+          include_content: params?.includeContent,
           limit: params?.limit,
           offset: params?.offset,
         },
