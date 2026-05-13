@@ -11,17 +11,23 @@ logger = logging.getLogger(__name__)
 MIN_TEXT_LENGTH = 20
 
 
+MAX_TRANSCRIPT_CHARS = 6000
+
+
 class VideoSignalExtractor(BaseExtractor):
-    def __init__(self, litellm_model: str, temperature: float = 0.3, max_tokens: int = 8192):
+    def __init__(self, litellm_model: str, temperature: float = 0.3, max_tokens: int = 8192, timeout: int = 300):
         self.model = litellm_model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.timeout = timeout
 
     def extract(self, content) -> list[MentionData]:
         transcript_text, quality = self._get_best_transcript(content)
         title = content.title or ""
 
         if transcript_text:
+            if len(transcript_text) > MAX_TRANSCRIPT_CHARS:
+                transcript_text = transcript_text[:MAX_TRANSCRIPT_CHARS]
             full_text = f"标题: {title}\n\n字幕内容:\n{transcript_text}"
         else:
             full_text = title
@@ -50,7 +56,7 @@ class VideoSignalExtractor(BaseExtractor):
                 ],
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
-                response_format={"type": "json_object"},
+                timeout=self.timeout,
             )
 
             raw = response.choices[0].message.content

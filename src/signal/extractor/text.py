@@ -11,10 +11,11 @@ MIN_TEXT_LENGTH = 20
 
 
 class TextSignalExtractor(BaseExtractor):
-    def __init__(self, litellm_model: str, temperature: float = 0.3, max_tokens: int = 8192):
+    def __init__(self, litellm_model: str, temperature: float = 0.3, max_tokens: int = 8192, timeout: int = 300):
         self.model = litellm_model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.timeout = timeout
 
     def extract(self, content) -> list[MentionData]:
         text = content.text or ""
@@ -42,7 +43,7 @@ class TextSignalExtractor(BaseExtractor):
                 ],
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
-                response_format={"type": "json_object"},
+                timeout=self.timeout,
             )
 
             raw = response.choices[0].message.content
