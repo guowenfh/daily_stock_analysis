@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 - [改进] 信号 Web：`/signals` 改为简报流（类型筛选、状态条、事件卡片 + 右侧研判侧栏），运营页整合为 `/signals/settings?tab=`（UP主/质量/内容队列）；移除旧子路径 `/signals/quality|content|creators|asset/:id` 路由。
+<!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
+- [新功能] 通知网关新增 ntfy 一等渠道，支持通过 `NTFY_URL` / `NTFY_TOKEN` 推送并接入 Web 测试、路由、Actions 与诊断。
+- [新功能] 通知网关新增 Gotify 一等渠道，支持通过 `GOTIFY_URL` / `GOTIFY_TOKEN` 推送 Markdown 文本并接入 Web 测试、路由、Actions 与诊断。
+- [修复] 收紧 ntfy 结构化校验，避免 URL 编码空白 topic 被误判为有效通知端点。
+- [文档] 补充 Bark custom webhook 示例和 WebPush / Apprise 通知渠道评估，明确本轮不新增运行时依赖或配置入口。
+- [修复] 聚合报告通知按静态渠道隔离发送失败，并补充自定义 Webhook 部分成功诊断与脱敏测试。
+- [修复] 未配置 Tushare / Longbridge 凭据时不再实例化对应可选 fetcher，避免缺失凭据的数据源进入候选集。
 - [修复] Longbridge 遇到连接关闭类异常后会进入冷却期，并在美股/港股实时与日线请求中临时跳过该数据源，避免请求级频繁重连。
 - [修复] Pytdx 股票名称查询在全部服务器不可达时会短暂冷却，并在冷却期内跳过重复探测，减少无效拨号与告警噪音。
 - [修复] 调度模式未显式设置 `SCHEDULE_RUN_IMMEDIATELY` 时，会继续继承 `RUN_IMMEDIATELY` 的运行时覆盖语义，避免被持久化 `.env` 别名反向覆盖。
@@ -38,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [新功能] 信号 API：事件列表支持 `sort_by`（`score`/`created_at`/`mention_count`）与 `sort_order`（`asc`/`desc`）；标的 mentions 支持 `include_content` 返回 `content_text`、`transcript_text`、`summary_text`。
 - [新功能] API v1 新增信号内容队列、事件总览、资产维度与流水线控制端点（`/api/v1/signals/contents`、`/api/v1/signals/events`、`/api/v1/signals/stats`、`/api/v1/signals/assets`、`/api/v1/signals/pipeline`）。
 - [新功能] Web 信号模块：内容队列页、信号总览页与标的详情页接入上述 API，并对响应字段做 snake_case → camelCase 映射与列表查询参数对齐。
+- [修复] Web 首页大盘复盘结果改由主内容滚动区承载，避免 loading 切换到长结果后下方报告区域被截断或无法继续滚动。
 
 ## [3.16.0] - 2026-05-10
 
