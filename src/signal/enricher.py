@@ -23,6 +23,10 @@ _whisper_lock = threading.Lock()
 _BVID_RE = re.compile(r"BV[\w]+")
 
 
+class SubtitleFetchError(Exception):
+    """Raised when subtitle fetch fails but subtitles may exist."""
+
+
 @dataclass
 class EnrichResult:
     enriched: int = 0
@@ -110,10 +114,24 @@ class ContentEnricher:
             result.skipped += 1
             return
 
-        subtitle_text = self._get_platform_subtitle(bvid)
+        subtitle_text = None
 
+        # Try platform subtitle first; raise on fetch failures so the
+        # caller can mark the content as failed instead of silently
+        # falling through to title-only.
+        try:
+            subtitle_text = self._get_platform_subtitle(bvid)
+        except SubtitleFetchError:
+            logger.warning("Platform subtitle fetch failed for %s", bvid)
+            raise
+
+        # Fallback to whisper only when platform reports no subtitle.
         if not subtitle_text:
-            subtitle_text = self._get_whisper_transcript(bvid)
+            try:
+                subtitle_text = self._get_whisper_transcript(bvid)
+            except SubtitleFetchError:
+                logger.warning("Whisper transcript fetch failed for %s", bvid)
+                raise
 
         if subtitle_text:
             quality = "good" if len(subtitle_text) >= MIN_SUBTITLE_LENGTH else "short"
@@ -131,6 +149,10 @@ class ContentEnricher:
             content.status = "pending_extract"
             result.enriched += 1
         else:
+            # No subtitle from either source — genuinely no transcript
+            # available. Record title-only so extraction can still run
+            # with reduced confidence.
+            logger.info("No subtitle available for %s, using title-only", bvid)
             transcript = ContentTranscript(
                 content_id=content.id,
                 source="platform",
@@ -142,6 +164,13 @@ class ContentEnricher:
             result.enriched += 1
 
     def _get_platform_subtitle(self, bvid: str) -> Optional[str]:
+        """Fetch platform subtitle for a video.
+
+        Returns subtitle text when available, None when the video genuinely
+        has no subtitle.  Raises SubtitleFetchError when the fetch command
+        fails (timeout, non-zero exit, parse error) so callers can
+        distinguish "no subtitle" from "fetch failed".
+        """
         try:
             proc = subprocess.run(
                 ["bili", "video", bvid, "--subtitle", "--yaml"],
@@ -150,12 +179,15 @@ class ContentEnricher:
                 timeout=60,
             )
         except subprocess.TimeoutExpired:
-            logger.debug("Platform subtitle timed out for %s", bvid)
-            return None
+            raise SubtitleFetchError(f"Platform subtitle timed out for {bvid}")
+
+        if proc.returncode != 0:
+            raise SubtitleFetchError(
+                f"Platform subtitle command failed for {bvid}: "
+                f"exit={proc.returncode}, stderr={proc.stderr[:200]}"
+            )
 
         try:
-            if proc.returncode != 0:
-                return None
             data = yaml.safe_load(proc.stdout)
             if isinstance(data, dict):
                 inner = data.get("data", data)
@@ -170,10 +202,17 @@ class ContentEnricher:
                 return data
             return None
         except Exception as e:
-            logger.debug("Platform subtitle parse failed for %s: %s", bvid, e)
-            return None
+            raise SubtitleFetchError(
+                f"Platform subtitle parse failed for {bvid}: {e}"
+            )
 
     def _get_whisper_transcript(self, bvid: str) -> Optional[str]:
+        """Fetch transcript via whisper.
+
+        Returns transcript text when available, None when no audio or
+        whisper produced no output.  Raises SubtitleFetchError on timeout
+        (whisper couldn't process the audio).
+        """
         logger.debug("Whisper lock acquiring for %s", bvid)
         _whisper_lock.acquire()
         logger.debug("Whisper lock acquired for %s", bvid)
@@ -218,8 +257,7 @@ class ContentEnricher:
 
             return whisper_proc.stdout.strip() or None
         except subprocess.TimeoutExpired:
-            logger.warning("Whisper timed out for %s", bvid)
-            return None
+            raise SubtitleFetchError(f"Whisper timed out for {bvid}")
         except Exception as e:
             logger.debug("Whisper failed for %s: %s", bvid, e)
             return None

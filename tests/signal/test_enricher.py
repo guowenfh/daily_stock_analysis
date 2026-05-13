@@ -2,7 +2,7 @@
 from unittest.mock import patch, MagicMock
 
 from src.signal.models import ContentCreator, Content, ContentMedia, ContentTranscript
-from src.signal.enricher import ContentEnricher
+from src.signal.enricher import ContentEnricher, SubtitleFetchError
 
 
 class TestContentEnricher:
@@ -50,13 +50,34 @@ class TestContentEnricher:
         assert transcript.quality == "good"
 
     @patch("src.signal.enricher.subprocess.run")
-    def test_video_no_subtitle_title_only(self, mock_run, db_session):
+    def test_video_fetch_failure_marks_failed(self, mock_run, db_session):
+        """Command failure (returncode=1) should mark content as failed."""
         creator = self._setup_creator(db_session)
         content = self._setup_video_content(db_session, creator)
         db_session.commit()
 
         mock_run.return_value = MagicMock(
             returncode=1, stdout="", stderr="not found"
+        )
+
+        enricher = ContentEnricher(db_session)
+        result = enricher.enrich_batch()
+
+        assert result.failed == 1
+        assert content.status == "failed"
+        assert content.failure_stage == "enrich"
+
+    @patch("src.signal.enricher.subprocess.run")
+    def test_video_no_subtitle_title_only(self, mock_run, db_session):
+        """Genuinely no subtitle (command succeeds, no text) falls through
+        to title_only."""
+        creator = self._setup_creator(db_session)
+        content = self._setup_video_content(db_session, creator)
+        db_session.commit()
+
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="ok: true\ndata:\n  subtitle:\n    available: false\n",
         )
 
         enricher = ContentEnricher(db_session)
