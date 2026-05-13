@@ -1,6 +1,9 @@
 """Content enrichment: subtitle extraction and OCR."""
 import logging
+import os
+import re
 import subprocess
+import tempfile
 import threading
 from dataclasses import dataclass, field
 from typing import Optional
@@ -16,6 +19,8 @@ WHISPER_TIMEOUT = 300
 MIN_SUBTITLE_LENGTH = 50
 
 _whisper_lock = threading.Lock()
+
+_BVID_RE = re.compile(r"BV[\w]+")
 
 
 @dataclass
@@ -60,9 +65,21 @@ class ContentEnricher:
         self.session.commit()
         return result
 
+    @staticmethod
+    def _extract_bvid(content: Content) -> Optional[str]:
+        pid = content.platform_content_id or ""
+        if pid.startswith("BV"):
+            return pid
+        for field in (content.url, pid):
+            if field:
+                m = _BVID_RE.search(field)
+                if m:
+                    return m.group(0)
+        return None
+
     def _enrich_video(self, content: Content, result: EnrichResult):
-        bvid = content.platform_content_id
-        if not bvid or not bvid.startswith("BV"):
+        bvid = self._extract_bvid(content)
+        if not bvid:
             content.status = "pending_extract"
             result.skipped += 1
             return
@@ -115,6 +132,13 @@ class ContentEnricher:
                 return None
             data = yaml.safe_load(proc.stdout)
             if isinstance(data, dict):
+                inner = data.get("data", data)
+                if isinstance(inner, dict):
+                    sub = inner.get("subtitle", {})
+                    if isinstance(sub, dict):
+                        text = sub.get("text", "")
+                        if text:
+                            return text
                 return data.get("subtitle", "") or data.get("text", "")
             if isinstance(data, str):
                 return data
@@ -128,9 +152,10 @@ class ContentEnricher:
             logger.info("Whisper lock busy, skipping %s", bvid)
             return None
 
+        tmp_dir = tempfile.mkdtemp(prefix=f"signal_audio_{bvid}_")
         try:
             audio_proc = subprocess.run(
-                ["bili", "audio", bvid],
+                ["bili", "audio", bvid, "--no-split", "-o", tmp_dir],
                 capture_output=True,
                 text=True,
                 timeout=120,
@@ -138,9 +163,14 @@ class ContentEnricher:
             if audio_proc.returncode != 0:
                 return None
 
-            audio_path = audio_proc.stdout.strip()
-            if not audio_path:
+            m4a_files = [
+                os.path.join(tmp_dir, f)
+                for f in os.listdir(tmp_dir)
+                if f.endswith(".m4a")
+            ]
+            if not m4a_files:
                 return None
+            audio_path = m4a_files[0]
 
             whisper_proc = subprocess.run(
                 [
