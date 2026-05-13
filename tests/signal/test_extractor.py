@@ -6,6 +6,7 @@ from src.signal.models import ContentCreator, Content, SignalMention
 from src.signal.prompt_manager import PromptManager
 from src.signal.extractor.base import MentionData
 from src.signal.extractor.text import TextSignalExtractor
+from src.signal.extractor.video import VideoSignalExtractor
 from src.signal.extractor.registry import ExtractorRegistry
 
 
@@ -49,6 +50,95 @@ class TestTextSignalExtractor:
         extractor = TextSignalExtractor(litellm_model="test")
         mentions = extractor.extract(content)
         assert len(mentions) == 0
+
+
+class TestVideoSignalExtractor:
+    @patch("litellm.completion")
+    @patch.object(PromptManager, "get_prompt")
+    def test_video_extractor_long_transcript_triggers_summary(self, mock_get_prompt, mock_completion, db_session):
+        mock_get_prompt.side_effect = lambda name: f"sys-{name}"
+
+        summary_resp = MagicMock()
+        summary_resp.choices = [MagicMock()]
+        summary_resp.choices[0].message.content = (
+            "# 摘要\n\n贵州茅台看多，代码 600519。\n" * 3
+        )
+
+        extract_resp = MagicMock()
+        extract_resp.choices = [MagicMock()]
+        extract_resp.choices[0].message.content = json.dumps({
+            "mentions": [{
+                "name": "贵州茅台", "code": "600519",
+                "asset_type": "stock", "market": "a_share",
+                "sentiment": "bullish", "confidence": 0.85,
+                "is_primary": True,
+                "reasoning": "摘要里说了",
+                "trade_advice": "", "key_levels": {},
+            }]
+        })
+
+        _call = {"n": 0}
+
+        def completion_side_effect(*args, **kwargs):
+            _call["n"] += 1
+            if _call["n"] == 1:
+                return summary_resp
+            return extract_resp
+
+        mock_completion.side_effect = completion_side_effect
+
+        long_text = "字" * 6001
+        transcript = MagicMock()
+        transcript.quality = "good"
+        transcript.source = "platform"
+        transcript.text = long_text
+
+        content = MagicMock()
+        content.title = "财经盘点"
+        content.transcripts = [transcript]
+
+        extractor = VideoSignalExtractor(litellm_model="test-model")
+        mentions = extractor.extract(content)
+
+        assert mock_completion.call_count == 2
+        assert len(mentions) == 1
+        assert "based_on_summary" in mentions[0].quality_flags
+
+    @patch("litellm.completion")
+    @patch.object(PromptManager, "get_prompt")
+    def test_video_extractor_short_transcript_no_summary(self, mock_get_prompt, mock_completion, db_session):
+        mock_get_prompt.side_effect = lambda name: f"sys-{name}"
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = json.dumps({
+            "mentions": [{
+                "name": "贵州茅台", "code": "600519",
+                "asset_type": "stock", "market": "a_share",
+                "sentiment": "bullish", "confidence": 0.85,
+                "is_primary": True,
+                "reasoning": "字幕里说了",
+                "trade_advice": "", "key_levels": {},
+            }]
+        })
+        mock_completion.return_value = mock_response
+
+        short_text = "字" * 6000
+        transcript = MagicMock()
+        transcript.quality = "good"
+        transcript.source = "platform"
+        transcript.text = short_text
+
+        content = MagicMock()
+        content.title = "财经盘点"
+        content.transcripts = [transcript]
+
+        extractor = VideoSignalExtractor(litellm_model="test-model")
+        mentions = extractor.extract(content)
+
+        assert mock_completion.call_count == 1
+        assert len(mentions) == 1
+        assert "based_on_summary" not in mentions[0].quality_flags
 
 
 class TestExtractorRegistry:
