@@ -117,3 +117,41 @@ class TestContentEnricher:
         assert result.failed == 1
         assert content.status == "failed"
         assert content.failure_stage == "enrich"
+
+    @patch("src.signal.enricher.subprocess.run")
+    def test_commits_each_item_and_reports_progress(self, mock_run, db_session):
+        creator = self._setup_creator(db_session)
+        first = self._setup_video_content(db_session, creator, bvid="BVfirst")
+        second = self._setup_video_content(db_session, creator, bvid="BVsecond")
+        db_session.commit()
+
+        def fake_run(args, **kwargs):
+            if args[2] == "BVfirst":
+                return MagicMock(
+                    returncode=0,
+                    stdout=(
+                        'subtitle: "第一条字幕内容足够长，'
+                        '用于验证单条提交之后后续失败不会回滚已经成功的数据。"'
+                    ),
+                )
+            raise Exception("CLI crashed")
+
+        mock_run.side_effect = fake_run
+        progress = []
+
+        enricher = ContentEnricher(db_session)
+        result = enricher.enrich_batch(
+            on_progress=lambda done, total: progress.append((done, total))
+        )
+
+        db_session.refresh(first)
+        db_session.refresh(second)
+        assert result.enriched == 1
+        assert result.failed == 1
+        assert first.status == "pending_extract"
+        assert second.status == "failed"
+        assert (
+            db_session.query(ContentTranscript).filter_by(content_id=first.id).count()
+            == 1
+        )
+        assert progress == [(1, 2), (2, 2)]

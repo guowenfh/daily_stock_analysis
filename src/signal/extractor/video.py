@@ -4,8 +4,6 @@ import logging
 import re
 from typing import Optional
 
-from sqlalchemy.orm import object_session
-
 from src.signal.extractor.base import BaseExtractor, MentionData
 
 logger = logging.getLogger(__name__)
@@ -135,25 +133,10 @@ class VideoSignalExtractor(BaseExtractor):
         return None
 
     def _cache_summary(self, content, summary: str) -> None:
-        try:
-            from src.signal.models import ContentTranscript
-
-            cid = getattr(content, "id", None)
-            if cid is None:
-                return
-
-            transcript = ContentTranscript(
-                content_id=cid,
-                source="llm_summary",
-                text=summary,
-                quality="summarized",
-            )
-            sess = object_session(content)
-            if sess is not None:
-                sess.add(transcript)
-                sess.flush()
-        except Exception as e:
-            logger.warning("Failed to cache summary: %s", e)
+        # Extraction runs in worker threads while DB writes happen on the
+        # registry's owning thread. Avoid writing through object_session(content)
+        # here because SQLAlchemy sessions are not thread-safe.
+        return
 
     def _get_best_transcript(self, content) -> tuple[Optional[str], Optional[str]]:
         transcripts = getattr(content, "transcripts", None) or []

@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import threading
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Callable, Optional
 
 import yaml
 from sqlalchemy.orm import Session
@@ -35,7 +35,12 @@ class ContentEnricher:
     def __init__(self, session: Session):
         self.session = session
 
-    def enrich_batch(self, limit: int = 20) -> EnrichResult:
+    def enrich_batch(
+        self,
+        limit: int = 20,
+        on_progress: Optional[Callable[[int, int], None]] = None,
+        cancel_check: Optional[Callable[[], bool]] = None,
+    ) -> EnrichResult:
         result = EnrichResult()
 
         contents = (
@@ -44,26 +49,47 @@ class ContentEnricher:
             .limit(limit)
             .all()
         )
+        total = len(contents)
 
-        for content in contents:
+        for processed, content in enumerate(contents, start=1):
+            if cancel_check and cancel_check():
+                break
+            item_result = EnrichResult()
             try:
                 if content.display_type == "video_subtitle":
-                    self._enrich_video(content, result)
+                    self._enrich_video(content, item_result)
                 elif content.display_type == "image_text":
-                    self._enrich_image(content, result)
+                    self._enrich_image(content, item_result)
                 else:
                     content.status = "pending_extract"
-                    result.skipped += 1
+                    item_result.skipped += 1
+                self.session.commit()
+                result.enriched += item_result.enriched
+                result.skipped += item_result.skipped
             except Exception as e:
-                content.status = "failed"
-                content.failure_stage = "enrich"
-                content.failure_reason = str(e)[:500]
+                self.session.rollback()
                 result.failed += 1
                 result.errors.append(f"Content {content.id}: {e}")
                 logger.exception("Enrichment failed for content %d", content.id)
-
-        self.session.commit()
+                self._mark_failed(content.id, e)
+            finally:
+                if on_progress:
+                    on_progress(processed, total)
         return result
+
+    def _mark_failed(self, content_id: int, error: Exception):
+        try:
+            content = self.session.get(Content, content_id)
+            if content is None:
+                return
+            content.status = "failed"
+            content.failure_stage = "enrich"
+            content.failure_reason = str(error)[:500]
+            content.suggested_action = "review"
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            logger.exception("Failed to mark content %d as failed", content_id)
 
     @staticmethod
     def _extract_bvid(content: Content) -> Optional[str]:

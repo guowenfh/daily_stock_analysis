@@ -7,6 +7,7 @@ Rules:
 import logging
 import os
 import threading
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,37 @@ def rate_limited_completion(*args, **kwargs):
 
     with _llm_semaphore:
         logger.debug("LLM call started [model=%s]", model)
-        return litellm.completion(*args, **kwargs)
+        return litellm.completion(*args, **_with_channel_params(kwargs))
+
+
+def _with_channel_params(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Inject channel api_base/api_key for direct LiteLLM calls."""
+    if kwargs.get("api_base") or kwargs.get("base_url"):
+        return kwargs
+
+    model = kwargs.get("model")
+    if not model:
+        return kwargs
+
+    try:
+        from src.config import get_config
+
+        config = get_config()
+    except Exception:
+        return kwargs
+
+    for entry in getattr(config, "llm_model_list", None) or []:
+        params = dict(entry.get("litellm_params") or {})
+        if entry.get("model_name") != model and params.get("model") != model:
+            continue
+
+        merged = dict(kwargs)
+        for key in ("api_key", "api_base", "base_url", "extra_headers"):
+            if params.get(key) and not merged.get(key):
+                merged[key] = params[key]
+        return merged
+
+    return kwargs
 
 
 def acquire_whisper():

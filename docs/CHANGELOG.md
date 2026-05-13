@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [新功能] API v1 新增信号内容队列、事件总览、资产维度与流水线控制端点（`/api/v1/signals/contents`、`/api/v1/signals/events`、`/api/v1/signals/stats`、`/api/v1/signals/assets`、`/api/v1/signals/pipeline`）。
 - [新功能] Web 信号模块：内容队列页、信号总览页与标的详情页接入上述 API，并对响应字段做 snake_case → camelCase 映射与列表查询参数对齐。
 - [修复] Web 首页大盘复盘结果改由主内容滚动区承载，避免 loading 切换到长结果后下方报告区域被截断或无法继续滚动。
+- [修复] 信号富化流程兼容旧版 SQLite 信号表结构，启动时迁移可保留字段并移除废弃列；富化改为单条提交和单条进度更新，避免单条失败回滚整批数据。
+- [修复] 信号提取的直接 LiteLLM 调用补齐 LLM channel 的 `api_base`、`api_key` 与额外 headers，避免 OpenAI-compatible 渠道误走默认 OpenAI 地址。
+- [修复] 视频信号提取避免在 worker 线程通过主 SQLAlchemy session 缓存摘要，防止并发写库导致提取批次失败。
+- [修复] 信号提取线程池预加载内容的 transcripts 关系，避免 worker 线程触发 SQLAlchemy 懒加载导致并发 session 错误。
 
 ## [3.16.0] - 2026-05-10
 

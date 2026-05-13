@@ -149,7 +149,11 @@ class SignalPipeline:
             self._progress("enrich", 1, 0, effective_limit, f"富化: 0/{effective_limit}")
 
             enricher = ContentEnricher(self.session)
-            r = enricher.enrich_batch(limit=effective_limit)
+            r = enricher.enrich_batch(
+                limit=effective_limit,
+                on_progress=self._on_enrich_item,
+                cancel_check=self._cancelled,
+            )
             step.success = r.enriched
             step.skipped = r.skipped
             step.failed = r.failed
@@ -160,6 +164,9 @@ class SignalPipeline:
             step.errors = [str(e)]
         step.ended_at = datetime.utcnow().isoformat()
         return step
+
+    def _on_enrich_item(self, processed: int, total: int):
+        self._progress("enrich", 1, processed, total, f"富化: {processed}/{total}")
 
     def _run_extract(self, limit: int) -> StepResult:
         step = StepResult(name="extract", started_at=datetime.utcnow().isoformat())

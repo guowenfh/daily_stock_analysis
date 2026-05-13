@@ -59,9 +59,10 @@ class ExtractorRegistry:
         if total == 0:
             return result
 
-        # Pre-load media to avoid lazy-load issues in threads
+        # Pre-load relationships to avoid lazy-load DB access in worker threads.
         for c in contents:
             _ = c.media
+            _ = c.transcripts
 
         # Filter out already-extracted and no-extractor items first
         work_items = []
