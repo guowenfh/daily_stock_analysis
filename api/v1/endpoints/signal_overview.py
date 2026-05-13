@@ -14,6 +14,10 @@ from src.signal.quality import QualityTracker
 router = APIRouter()
 
 
+_ALLOWED_EVENT_SORT = frozenset({"score", "created_at", "mention_count"})
+_ALLOWED_SORT_ORDER = frozenset({"asc", "desc"})
+
+
 @router.get("/events", response_model=list[EventResponse])
 def list_events(
     event_type: Optional[str] = Query(None),
@@ -21,10 +25,23 @@ def list_events(
     asset_type: Optional[str] = Query(None),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    sort_by: str = Query("score"),
+    sort_order: str = Query("desc"),
     limit: int = Query(50, le=200),
     offset: int = Query(0),
     db: Session = Depends(get_db),
 ):
+    if sort_by not in _ALLOWED_EVENT_SORT:
+        raise HTTPException(
+            422,
+            detail="sort_by must be one of: score, created_at, mention_count",
+        )
+    if sort_order not in _ALLOWED_SORT_ORDER:
+        raise HTTPException(
+            422,
+            detail="sort_order must be one of: asc, desc",
+        )
+
     q = db.query(SignalEvent)
     if event_type:
         q = q.filter(SignalEvent.event_type == event_type)
@@ -37,12 +54,18 @@ def list_events(
     if date_to:
         q = q.filter(SignalEvent.event_date <= date_to)
 
-    events = (
-        q.order_by(SignalEvent.score.desc().nulls_last())
-        .offset(offset)
-        .limit(limit)
-        .all()
+    sort_col = {
+        "score": SignalEvent.score,
+        "created_at": SignalEvent.created_at,
+        "mention_count": SignalEvent.mention_count,
+    }[sort_by]
+    order_clause = (
+        sort_col.desc().nulls_last()
+        if sort_order == "desc"
+        else sort_col.asc().nulls_last()
     )
+
+    events = q.order_by(order_clause).offset(offset).limit(limit).all()
 
     return [
         EventResponse(

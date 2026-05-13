@@ -4,13 +4,48 @@ from typing import Optional
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from api.deps import get_db
 from api.v1.schemas.signal import MentionResponse
 from src.signal.models import Content, ContentCreator, SignalEvent, SignalMention
 
 router = APIRouter()
+
+_TRANSCRIPT_QUALITY_PRIORITY = {"good": 0, "short": 1, "title_only": 2, "failed": 3}
+
+
+def _best_transcript_text(content: Optional[Content]) -> Optional[str]:
+    """Pick the best non-summary transcript (same priority as video extractor)."""
+    if not content:
+        return None
+    transcripts = content.transcripts or []
+    non_summary = [
+        t for t in transcripts if getattr(t, "source", None) != "llm_summary"
+    ]
+    if not non_summary:
+        return None
+    sorted_t = sorted(
+        non_summary,
+        key=lambda t: _TRANSCRIPT_QUALITY_PRIORITY.get(t.quality, 99),
+    )
+    best = sorted_t[0]
+    if best and best.quality != "failed":
+        return best.text
+    return None
+
+
+def _llm_summary_transcript(content: Optional[Content]) -> Optional[str]:
+    if not content:
+        return None
+    for t in content.transcripts or []:
+        if (
+            getattr(t, "source", None) == "llm_summary"
+            and getattr(t, "quality", None) == "summarized"
+            and t.text
+        ):
+            return t.text
+    return None
 
 
 def _resolve_asset(identifier: str, db: Session):
@@ -86,6 +121,7 @@ def get_asset_mentions(
     identifier: str,
     sentiment: Optional[str] = Query(None),
     creator_id: Optional[int] = Query(None),
+    include_content: bool = Query(False),
     limit: int = Query(50, le=200),
     offset: int = Query(0),
     db: Session = Depends(get_db),
@@ -99,6 +135,10 @@ def get_asset_mentions(
         q = q.filter(SignalMention.sentiment == sentiment)
     if creator_id is not None:
         q = q.filter(SignalMention.creator_id == creator_id)
+    if include_content:
+        q = q.options(
+            selectinload(SignalMention.content).selectinload(Content.transcripts)
+        )
 
     mentions = (
         q.order_by(SignalMention.created_at.desc()).offset(offset).limit(limit).all()
@@ -107,7 +147,14 @@ def get_asset_mentions(
     result = []
     for m in mentions:
         creator = db.get(ContentCreator, m.creator_id)
-        content = db.get(Content, m.content_id)
+        content = m.content if include_content else db.get(Content, m.content_id)
+        content_text = None
+        transcript_text = None
+        summary_text = None
+        if include_content and content:
+            content_text = content.text
+            transcript_text = _best_transcript_text(content)
+            summary_text = _llm_summary_transcript(content)
         result.append(
             MentionResponse(
                 id=m.id,
@@ -128,6 +175,9 @@ def get_asset_mentions(
                 source_url=content.url if content else None,
                 published_at=content.published_at if content else None,
                 created_at=m.created_at,
+                content_text=content_text,
+                transcript_text=transcript_text,
+                summary_text=summary_text,
             )
         )
     return result

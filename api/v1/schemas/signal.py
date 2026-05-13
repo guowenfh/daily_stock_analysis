@@ -110,6 +110,9 @@ class MentionResponse(BaseModel):
     source_url: Optional[str]
     published_at: Optional[datetime]
     created_at: Optional[datetime]
+    content_text: Optional[str] = None
+    transcript_text: Optional[str] = None
+    summary_text: Optional[str] = None
 
 
 class EventResponse(BaseModel):
