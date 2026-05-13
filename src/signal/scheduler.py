@@ -110,9 +110,11 @@ class SignalScheduler:
             except ImportError:
                 pass
 
+            from src.signal.asset_resolver import AssetResolver
             from src.signal.pipeline import SignalPipeline
 
-            pipeline = SignalPipeline(session, extractors)
+            resolver = AssetResolver()
+            pipeline = SignalPipeline(session, extractors, asset_resolver=resolver)
             result = pipeline.run()
 
             self._last_result = {

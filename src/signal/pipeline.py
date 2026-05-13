@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from src.signal.asset_resolver import AssetResolver
 from src.signal.collector import BilibiliCollector
 from src.signal.enricher import ContentEnricher
 from src.signal.event_builder import SignalEventBuilder
@@ -38,9 +39,15 @@ class PipelineResult:
 
 
 class SignalPipeline:
-    def __init__(self, session: Session, extractors: Optional[dict] = None):
+    def __init__(
+        self,
+        session: Session,
+        extractors: Optional[dict] = None,
+        asset_resolver: Optional[AssetResolver] = None,
+    ):
         self.session = session
         self.extractors = extractors or {}
+        self.asset_resolver = asset_resolver
 
     def run(self, max_contents: int = 50, process_limit: int = 20) -> PipelineResult:
         _ = max_contents  # reserved for future collector limits
@@ -112,7 +119,9 @@ class SignalPipeline:
     def _run_extract(self, limit: int) -> StepResult:
         step = StepResult(name="extract", started_at=datetime.utcnow().isoformat())
         try:
-            registry = ExtractorRegistry(self.session, self.extractors)
+            registry = ExtractorRegistry(
+                self.session, self.extractors, asset_resolver=self.asset_resolver
+            )
             r = registry.extract_all(limit=limit)
             step.success = r.extracted
             step.failed = r.failed
