@@ -44,6 +44,8 @@ export interface QualityStats {
   coveredCreators: number;
   creatorCoverageRate: number;
   failureExplainabilityRate: number;
+  signalMentionCount: number;
+  signalEventCount: number;
 }
 
 export interface FunnelData {

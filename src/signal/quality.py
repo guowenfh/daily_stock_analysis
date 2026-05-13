@@ -7,7 +7,7 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from src.signal.models import Content, ContentCreator
+from src.signal.models import Content, ContentCreator, SignalEvent, SignalMention
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,8 @@ class QualityStats:
     creator_coverage_rate: float = 0.0
     explainable_failures: int = 0
     failure_explainability_rate: float = 0.0
+    signal_mention_count: int = 0
+    signal_event_count: int = 0
 
 
 class QualityTracker:
@@ -84,6 +86,18 @@ class QualityTracker:
                 .count()
             )
             stats.failure_explainability_rate = stats.explainable_failures / stats.failed_count
+
+        stats.signal_mention_count = (
+            self.session.query(func.count(SignalMention.id))
+            .filter(SignalMention.created_at >= since)
+            .scalar()
+        ) or 0
+
+        stats.signal_event_count = (
+            self.session.query(func.count(SignalEvent.id))
+            .filter(SignalEvent.created_at >= since)
+            .scalar()
+        ) or 0
 
         return stats
 

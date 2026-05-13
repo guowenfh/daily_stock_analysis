@@ -54,6 +54,8 @@ class QualityStatsResponse(BaseModel):
     covered_creators: int
     creator_coverage_rate: float
     failure_explainability_rate: float
+    signal_mention_count: int = 0
+    signal_event_count: int = 0
 
 
 class FunnelResponse(BaseModel):

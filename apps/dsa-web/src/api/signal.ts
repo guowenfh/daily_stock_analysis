@@ -61,6 +61,8 @@ type QualityStatsSnake = {
   covered_creators: number;
   creator_coverage_rate: number;
   failure_explainability_rate: number;
+  signal_mention_count: number;
+  signal_event_count: number;
 };
 
 function mapQualityStats(raw: QualityStatsSnake): QualityStats {
@@ -75,6 +77,8 @@ function mapQualityStats(raw: QualityStatsSnake): QualityStats {
     coveredCreators: raw.covered_creators,
     creatorCoverageRate: raw.creator_coverage_rate,
     failureExplainabilityRate: raw.failure_explainability_rate,
+    signalMentionCount: raw.signal_mention_count,
+    signalEventCount: raw.signal_event_count,
   };
 }
 

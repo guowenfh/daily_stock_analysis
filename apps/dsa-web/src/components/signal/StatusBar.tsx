@@ -36,7 +36,7 @@ const StatusBar = () => {
 
   const covered = stats?.coveredCreators ?? '—';
   const active = stats?.activeCreators ?? '—';
-  const signalCount = stats?.totalContents ?? '—';
+  const signalCount = stats?.signalEventCount ?? '—';
 
   return (
     <div

@@ -1,9 +1,9 @@
 """Tests for QualityTracker."""
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
-from src.signal.models import ContentCreator, Content
+from src.signal.models import ContentCreator, Content, SignalEvent, SignalMention
 from src.signal.quality import QualityTracker
 
 
@@ -64,3 +64,36 @@ class TestQualityTracker:
         assert stats.active_creators == 2
         assert stats.covered_creators == 1
         assert stats.creator_coverage_rate == 0.5
+
+    def test_signal_counts(self, db_session):
+        c = self._add_creator(db_session)
+        content = self._add_content(db_session, c.id, "p1", status="extracted")
+
+        mention = SignalMention(
+            content_id=content.id, creator_id=c.id,
+            asset_name="贵州茅台", asset_code="600519",
+            asset_type="stock", market="A",
+            sentiment="bullish", confidence=0.9,
+        )
+        db_session.add(mention)
+        db_session.flush()
+
+        event = SignalEvent(
+            asset_name="贵州茅台", asset_code="600519",
+            asset_type="stock", market="A",
+            event_type="opportunity", event_date=date.today(),
+            score=3.0, mention_count=1, creator_count=1,
+        )
+        db_session.add(event)
+        db_session.commit()
+
+        tracker = QualityTracker(db_session)
+        stats = tracker.compute_stats(since=datetime(2020, 1, 1))
+        assert stats.signal_mention_count == 1
+        assert stats.signal_event_count == 1
+
+    def test_signal_counts_zero_when_empty(self, db_session):
+        tracker = QualityTracker(db_session)
+        stats = tracker.compute_stats(since=datetime(2020, 1, 1))
+        assert stats.signal_mention_count == 0
+        assert stats.signal_event_count == 0
