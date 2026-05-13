@@ -1,19 +1,31 @@
 """Extractor dispatch by display_type."""
+from __future__ import annotations
+
 import json
 import logging
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Session
 
 from src.signal.models import Content, SignalMention
-from src.signal.extractor.base import BaseExtractor, MentionData, ExtractResult
+from src.signal.extractor.base import BaseExtractor, ExtractResult
+
+if TYPE_CHECKING:
+    from src.signal.asset_resolver import AssetResolver
 
 logger = logging.getLogger(__name__)
 
 
 class ExtractorRegistry:
-    def __init__(self, session: Session, extractors: dict[str, BaseExtractor]):
+    def __init__(
+        self,
+        session: Session,
+        extractors: dict[str, BaseExtractor],
+        asset_resolver: Optional[AssetResolver] = None,
+    ):
         self.session = session
         self.extractors = extractors
+        self.asset_resolver = asset_resolver
 
     def extract_all(self, contents: list[Content] = None, limit: int = 20) -> ExtractResult:
         result = ExtractResult()
@@ -27,6 +39,21 @@ class ExtractorRegistry:
             )
 
         for content in contents:
+            existing_count = (
+                self.session.query(SignalMention)
+                .filter_by(content_id=content.id)
+                .count()
+            )
+            if existing_count > 0:
+                content.status = "extracted"
+                result.skipped += 1
+                logger.info(
+                    "Skipped content %d: %d mentions already exist",
+                    content.id,
+                    existing_count,
+                )
+                continue
+
             extractor = self.extractors.get(content.display_type)
             if not extractor:
                 content.status = "failed"
@@ -37,6 +64,8 @@ class ExtractorRegistry:
 
             try:
                 mentions = extractor.extract(content)
+                if self.asset_resolver:
+                    mentions = self.asset_resolver.resolve(mentions)
                 if not mentions:
                     content.status = "extracted"
                     result.extracted += 1
