@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings } from 'lucide-react';
+import { Play, Settings } from 'lucide-react';
 import { signalApi, getSignalApiErrorMessage } from '../../api/signal';
 import type { SignalEvent } from '../../types/signal';
 import { Card } from '../../components/common';
@@ -33,6 +33,7 @@ const SignalBriefingPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<SignalEvent | null>(null);
+  const [triggering, setTriggering] = useState(false);
 
   const tabApiType = TAB_CONFIG.find((t) => t.key === tab)?.apiType;
   const showTypeLabel = tab === 'all';
@@ -84,6 +85,17 @@ const SignalBriefingPage = () => {
     setSelected((prev) => (prev?.id === e.id ? null : e));
   };
 
+  const handleTrigger = useCallback(async () => {
+    try {
+      setTriggering(true);
+      await signalApi.triggerPipeline();
+    } catch (err) {
+      console.error('Failed to trigger pipeline:', err);
+    } finally {
+      setTriggering(false);
+    }
+  }, []);
+
   return (
     <div className="space-y-6 p-6">
       <div>
@@ -116,18 +128,33 @@ const SignalBriefingPage = () => {
               {t.label}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => navigate('/signals/settings')}
-            className={cn(
-              'ml-auto inline-flex items-center gap-1.5 rounded-xl border border-border/60 px-3 py-2 text-sm font-medium',
-              'text-secondary-text hover:bg-hover hover:text-foreground'
-            )}
-            aria-label="信号设置"
-          >
-            <Settings className="h-4 w-4" />
-            设置
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              disabled={triggering}
+              onClick={handleTrigger}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-xl border border-border/60 px-3 py-2 text-sm font-medium',
+                'text-secondary-text hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+              aria-label="运行采集"
+            >
+              <Play className={cn('h-4 w-4', triggering && 'animate-pulse')} />
+              {triggering ? '运行中…' : '运行采集'}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/signals/settings')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-xl border border-border/60 px-3 py-2 text-sm font-medium',
+                'text-secondary-text hover:bg-hover hover:text-foreground'
+              )}
+              aria-label="信号设置"
+            >
+              <Settings className="h-4 w-4" />
+              设置
+            </button>
+          </div>
         </div>
       </Card>
 
