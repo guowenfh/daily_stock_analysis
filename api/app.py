@@ -119,24 +119,9 @@ from src.services.system_config_service import SystemConfigService
 async def app_lifespan(app: FastAPI):
     """Initialize and release shared services for the app lifecycle."""
     app.state.system_config_service = SystemConfigService()
-
-    signal_scheduler = None
-    try:
-        from api.v1.endpoints.signal_pipeline import get_scheduler
-        signal_scheduler = get_scheduler()
-        signal_scheduler.start()
-        logger.info("Signal scheduler started via app lifespan")
-    except Exception:
-        logger.warning("Failed to start signal scheduler", exc_info=True)
-
     try:
         yield
     finally:
-        if signal_scheduler:
-            try:
-                signal_scheduler.stop()
-            except Exception:
-                pass
         if hasattr(app.state, "system_config_service"):
             delattr(app.state, "system_config_service")
 

@@ -3,6 +3,7 @@ import { signalApi, getSignalApiErrorMessage } from '../../api/signal';
 import type { Creator, CreatorCreate, CreatorUpdate } from '../../types/signal';
 import { Card } from '../../components/common';
 import { cn } from '../../utils/cn';
+import CreatorDrawer from '../../components/signal/CreatorDrawer';
 
 const INPUT_CLASS =
   'input-surface input-focus-glow h-10 w-full rounded-xl border bg-transparent px-3 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60';
@@ -59,6 +60,7 @@ const CreatorManagePage = () => {
   const [editing, setEditing] = useState<Creator | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
+  const [drawerCreator, setDrawerCreator] = useState<Creator | null>(null);
 
   const [addForm, setAddForm] = useState({
     platformUid: '',
@@ -225,7 +227,15 @@ const CreatorManagePage = () => {
               ) : (
                 creators.map((c) => (
                   <tr key={c.id} className="bg-card/40 hover:bg-muted/25">
-                    <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <button
+                        type="button"
+                        className="text-left text-cyan hover:underline"
+                        onClick={() => setDrawerCreator(c)}
+                      >
+                        {c.name}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs text-secondary-text">{c.platformUid}</td>
                     <td className="px-4 py-3 text-secondary-text">
                       <span className="rounded-lg bg-muted px-2 py-0.5 text-xs">{c.platform}</span>
@@ -402,6 +412,8 @@ const CreatorManagePage = () => {
           </div>
         </div>
       ) : null}
+
+      <CreatorDrawer creator={drawerCreator} onClose={() => setDrawerCreator(null)} />
     </div>
   );
 };

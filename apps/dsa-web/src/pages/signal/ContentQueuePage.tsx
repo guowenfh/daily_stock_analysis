@@ -112,14 +112,19 @@ function contentTitle(row: ContentItem): string {
   return `${row.displayType} · ${row.platformContentId}`;
 }
 
-const ContentQueuePage = () => {
+export type ContentQueueProps = {
+  fixedCreatorId?: number;
+  compact?: boolean;
+};
+
+const ContentQueuePage = ({ fixedCreatorId, compact }: ContentQueueProps = {}) => {
   const [rows, setRows] = useState<ContentItem[]>([]);
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [displayType, setDisplayType] = useState('');
-  const [creatorId, setCreatorId] = useState<string>('');
+  const [creatorId, setCreatorId] = useState<string>(fixedCreatorId != null ? String(fixedCreatorId) : '');
   const [page, setPage] = useState(1);
   const [actionId, setActionId] = useState<number | null>(null);
   const [detail, setDetail] = useState<ContentDetail | null>(null);
@@ -228,11 +233,13 @@ const ContentQueuePage = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">内容队列</h1>
-        <p className="mt-1 text-sm text-secondary-text">采集内容处理状态、失败诊断与重试</p>
-      </div>
+    <div className={cn("space-y-4", compact ? "p-0" : "space-y-6 p-6")}>
+      {!compact && (
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">内容队列</h1>
+          <p className="mt-1 text-sm text-secondary-text">采集内容处理状态、失败诊断与重试</p>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
@@ -270,21 +277,23 @@ const ContentQueuePage = () => {
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-secondary-text">
-            UP主
-            <select
-              className={cn(SELECT_CLASS, 'min-w-[11rem]')}
-              value={creatorId}
-              onChange={(e) => setCreatorId(e.target.value)}
-            >
-              <option value="">全部 UP 主</option>
-              {creatorOptions.map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {fixedCreatorId == null && (
+            <label className="flex flex-col gap-1 text-xs font-medium text-secondary-text">
+              UP主
+              <select
+                className={cn(SELECT_CLASS, 'min-w-[11rem]')}
+                value={creatorId}
+                onChange={(e) => setCreatorId(e.target.value)}
+              >
+                <option value="">全部 UP 主</option>
+                {creatorOptions.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </Card>
 

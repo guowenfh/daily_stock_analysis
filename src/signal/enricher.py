@@ -11,7 +11,7 @@ from typing import Optional
 import yaml
 from sqlalchemy.orm import Session
 
-from src.signal.models import Content, ContentMedia, ContentTranscript
+from src.signal.models import Content, ContentTranscript
 
 logger = logging.getLogger(__name__)
 
@@ -148,9 +148,9 @@ class ContentEnricher:
             return None
 
     def _get_whisper_transcript(self, bvid: str) -> Optional[str]:
-        if not _whisper_lock.acquire(timeout=0):
-            logger.info("Whisper lock busy, skipping %s", bvid)
-            return None
+        logger.debug("Whisper lock acquiring for %s", bvid)
+        _whisper_lock.acquire()
+        logger.debug("Whisper lock acquired for %s", bvid)
 
         tmp_dir = tempfile.mkdtemp(prefix=f"signal_audio_{bvid}_")
         try:
@@ -201,63 +201,7 @@ class ContentEnricher:
             _whisper_lock.release()
 
     def _enrich_image(self, content: Content, result: EnrichResult):
-        media_list = (
-            self.session.query(ContentMedia)
-            .filter(
-                ContentMedia.content_id == content.id,
-                ContentMedia.media_type == "image",
-            )
-            .all()
-        )
-
-        if not media_list:
-            content.status = "pending_extract"
-            result.skipped += 1
-            return
-
-        try:
-            import litellm
-            from src.config import get_config
-
-            config = get_config()
-
-            for media in media_list:
-                if not media.url:
-                    continue
-                try:
-                    response = litellm.completion(
-                        model=config.litellm_model,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": (
-                                    "提取图片中的所有文字内容，保持原始格式。"
-                                    "如果是K线图或行情截图，描述关键信息。"
-                                ),
-                            },
-                            {
-                                "role": "user",
-                                "content": [
-                                    {
-                                        "type": "image_url",
-                                        "image_url": {"url": media.url},
-                                    },
-                                ],
-                            },
-                        ],
-                        max_tokens=2048,
-                    )
-                    ocr_text = response.choices[0].message.content
-                    media.ocr_text = ocr_text
-                except Exception as e:
-                    logger.debug("OCR failed for media %d: %s", media.id, e)
-
-            content.status = "pending_extract"
-            result.enriched += 1
-
-        except Exception as e:
-            content.status = "failed"
-            content.failure_stage = "enrich"
-            content.failure_reason = f"Image OCR failed: {e}"
-            result.failed += 1
-            result.errors.append(f"Content {content.id} image OCR: {e}")
+        # Multimodal model handles image recognition directly in extraction step.
+        # No separate OCR enrichment needed — just pass through to extractor.
+        content.status = "pending_extract"
+        result.enriched += 1

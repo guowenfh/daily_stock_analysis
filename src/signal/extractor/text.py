@@ -33,9 +33,9 @@ class TextSignalExtractor(BaseExtractor):
             return []
 
         try:
-            import litellm
+            from src.signal.rate_limiter import rate_limited_completion
 
-            response = litellm.completion(
+            response = rate_limited_completion(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},

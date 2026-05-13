@@ -13,6 +13,7 @@ import type {
   SignalEvent,
   AssetDetailOverview,
   PipelineStatus,
+  PipelineProgress,
   EventListParams,
   MentionListParams,
 } from '../types/signal';
@@ -459,10 +460,41 @@ export const signalApi = {
   getAssetTimeline: (identifier: string) =>
     apiClient.get(`${BASE}/assets/${encodeURIComponent(identifier)}/timeline`).then((r) => r.data),
 
-  triggerPipeline: () => apiClient.post(`${BASE}/pipeline/run`).then((r) => r.data),
+  triggerPipeline: (maxPages?: number, processLimit?: number) =>
+    apiClient
+      .post(`${BASE}/pipeline/run`, null, {
+        params: {
+          ...(maxPages ? { max_pages: maxPages } : {}),
+          ...(processLimit !== undefined ? { process_limit: processLimit } : {}),
+        },
+      })
+      .then((r) => r.data),
+
+  cancelPipeline: () =>
+    apiClient.post(`${BASE}/pipeline/cancel`).then((r) => r.data),
 
   getPipelineStatus: () =>
     apiClient.get<PipelineStatus>(`${BASE}/pipeline/status`).then((r) => r.data),
+
+  getPipelineProgress: () =>
+    apiClient
+      .get<Record<string, unknown>>(`${BASE}/pipeline/progress`)
+      .then((r) => {
+        const d = r.data;
+        return {
+          executing: Boolean(d.executing),
+          startedAt: d.started_at as string | undefined,
+          finishedAt: d.finished_at as string | undefined,
+          currentStep: (d.current_step as string) || '',
+          stepIndex: d.step_index as number | undefined,
+          totalSteps: d.total_steps as number | undefined,
+          processed: (d.processed as number) || 0,
+          total: (d.total as number) || 0,
+          failed: d.failed as number | undefined,
+          message: (d.message as string) || '',
+          elapsedMs: d.elapsed_ms as number | undefined,
+        } as PipelineProgress;
+      }),
 
   getPipelineLogs: (limit?: number) =>
     apiClient.get(`${BASE}/pipeline/logs`, { params: { limit } }).then((r) => r.data),

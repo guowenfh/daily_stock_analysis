@@ -54,52 +54,47 @@ const EventCard = ({ event, onClick, isSelected, showTypeLabel = true }: EventCa
       type="button"
       onClick={onClick}
       className={cn(
-        'flex w-full items-center gap-3 rounded-xl border bg-card/80 px-3 py-2.5 text-left transition-all hover:border-cyan/25 hover:bg-card',
+        'flex flex-col gap-1.5 rounded-xl border bg-card/80 p-3 text-left transition-all hover:border-cyan/25 hover:bg-card',
         isSelected
           ? 'border-cyan/50 ring-2 ring-cyan/30'
           : 'border-border/70'
       )}
     >
-      {showTypeLabel ? (
-        <span
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium',
-            meta.className
-          )}
-        >
-          <span aria-hidden>{meta.icon}</span>
-          {meta.label}
+      {/* Top row: type badge + score */}
+      <div className="flex items-center justify-between gap-2">
+        {showTypeLabel ? (
+          <span
+            className={cn(
+              'inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+              meta.className
+            )}
+          >
+            <span aria-hidden>{meta.icon}</span>
+            {meta.label}
+          </span>
+        ) : (
+          <span />
+        )}
+        <span className="text-xs font-semibold text-foreground">
+          {event.score != null ? event.score.toFixed(1) : '—'}
+          <span className="ml-0.5 font-normal text-secondary-text">分</span>
         </span>
-      ) : null}
+      </div>
 
-      <span className="min-w-0 shrink truncate font-semibold text-foreground">
+      {/* Asset name */}
+      <span className="truncate text-sm font-semibold text-foreground">
         {event.assetName}
       </span>
 
-      {event.assetCode ? (
-        <span className="shrink-0 rounded-md bg-muted/60 px-1.5 py-0.5 text-[11px] text-secondary-text">
-          {event.assetCode}
-        </span>
-      ) : null}
-
-      <span className="hidden shrink-0 text-xs text-muted-text sm:inline">
-        {event.market}
-      </span>
-
-      <span className="ml-auto flex shrink-0 items-center gap-3 text-xs text-secondary-text">
-        <span>
-          <span className="font-semibold text-foreground">
-            {event.score != null ? event.score.toFixed(1) : '—'}
-          </span>
-          <span className="ml-0.5">分</span>
-        </span>
-        <span>{event.creatorCount}UP · {event.mentionCount}提及</span>
-        {event.topCreatorName ? (
-          <span className="hidden max-w-[6rem] truncate lg:inline" title={event.topCreatorName}>
-            {event.topCreatorName}
+      {/* Bottom row: code + stats */}
+      <div className="flex items-center gap-2 text-[11px] text-secondary-text">
+        {event.assetCode ? (
+          <span className="rounded bg-muted/60 px-1 py-0.5">
+            {event.assetCode}
           </span>
         ) : null}
-      </span>
+        <span>{event.creatorCount}UP · {event.mentionCount}提及</span>
+      </div>
     </button>
   );
 };

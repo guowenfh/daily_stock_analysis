@@ -1,14 +1,34 @@
 """Image content signal extractor."""
+import base64
 import json
 import logging
 import re
+from typing import Optional
+
+import requests
 
 from src.signal.extractor.base import BaseExtractor, MentionData
 
 logger = logging.getLogger(__name__)
 
 MIN_TEXT_LENGTH = 20
-MAX_IMAGES = 10
+MAX_IMAGES = 5
+IMAGE_DOWNLOAD_TIMEOUT = 30
+
+
+def _url_to_base64(url: str) -> Optional[str]:
+    """Download image and return data URI (base64 encoded)."""
+    try:
+        resp = requests.get(url, timeout=IMAGE_DOWNLOAD_TIMEOUT)
+        resp.raise_for_status()
+        content_type = resp.headers.get("Content-Type", "image/png")
+        if ";" in content_type:
+            content_type = content_type.split(";")[0].strip()
+        b64 = base64.b64encode(resp.content).decode()
+        return f"data:{content_type};base64,{b64}"
+    except Exception as e:
+        logger.debug("Failed to download image %s: %s", url[:80], e)
+        return None
 
 
 class ImageSignalExtractor(BaseExtractor):
@@ -37,22 +57,25 @@ class ImageSignalExtractor(BaseExtractor):
             return []
 
         try:
-            import litellm
+            from src.signal.rate_limiter import rate_limited_completion
 
             messages = [{"role": "system", "content": system_prompt}]
 
             if image_urls:
                 user_content = [{"type": "text", "text": full_text}]
                 for url in image_urls[:MAX_IMAGES]:
-                    user_content.append({
-                        "type": "image_url",
-                        "image_url": {"url": url},
-                    })
+                    data_uri = _url_to_base64(url)
+                    if data_uri:
+                        user_content.append({
+                            "type": "image_url",
+                            "image_url": {"url": data_uri},
+                        })
+                has_images = len(user_content) > 1
                 messages.append({"role": "user", "content": user_content})
             else:
                 messages.append({"role": "user", "content": full_text})
 
-            response = litellm.completion(
+            response = rate_limited_completion(
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
@@ -81,9 +104,9 @@ class ImageSignalExtractor(BaseExtractor):
 
     def _fallback_text_only(self, text: str, system_prompt: str, content) -> list[MentionData]:
         try:
-            import litellm
+            from src.signal.rate_limiter import rate_limited_completion
 
-            response = litellm.completion(
+            response = rate_limited_completion(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},

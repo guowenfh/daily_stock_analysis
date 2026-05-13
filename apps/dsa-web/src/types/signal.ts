@@ -169,6 +169,21 @@ export interface AssetDetailOverview {
 
 export interface PipelineStatus {
   running: boolean;
+  executing: boolean;
   lastResult: Record<string, unknown> | null;
   jobId: string;
+}
+
+export interface PipelineProgress {
+  executing: boolean;
+  startedAt?: string;
+  finishedAt?: string;
+  currentStep: string;
+  stepIndex?: number;
+  totalSteps?: number;
+  processed: number;
+  total: number;
+  failed?: number;
+  message: string;
+  elapsedMs?: number;
 }

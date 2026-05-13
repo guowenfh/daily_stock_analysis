@@ -61,9 +61,9 @@ class VideoSignalExtractor(BaseExtractor):
             return []
 
         try:
-            import litellm
+            from src.signal.rate_limiter import rate_limited_completion
 
-            response = litellm.completion(
+            response = rate_limited_completion(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -107,9 +107,9 @@ class VideoSignalExtractor(BaseExtractor):
         user_payload = f"标题: {title}\n\n字幕内容:\n{transcript}"
 
         try:
-            import litellm
+            from src.signal.rate_limiter import rate_limited_completion
 
-            response = litellm.completion(
+            response = rate_limited_completion(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
