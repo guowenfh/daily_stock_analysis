@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { signalApi, getSignalApiErrorMessage } from '../../api/signal';
 import type { ContentItem, Creator } from '../../types/signal';
 import { Card } from '../../components/common';
@@ -73,6 +74,44 @@ function guessBilibiliUrl(platformContentId: string): string {
   return `https://search.bilibili.com/all?keyword=${encodeURIComponent(id)}`;
 }
 
+type ContentDetail = {
+  id: number;
+  creator_name: string;
+  platform_content_id: string;
+  content_type: string;
+  display_type: string;
+  title: string | null;
+  text: string | null;
+  url: string | null;
+  status: string;
+  failure_stage: string | null;
+  failure_reason: string | null;
+  suggested_action: string | null;
+  published_at: string | null;
+  created_at: string | null;
+  media: { id: number; media_type: string; url: string; ocr_text: string | null }[];
+  transcripts: { id: number; source: string; text: string; quality: string }[];
+  mentions: {
+    id: number;
+    asset_name: string;
+    asset_code: string | null;
+    sentiment: string;
+    confidence: number;
+    reasoning: string | null;
+  }[];
+};
+
+const SENTIMENT_LABEL: Record<string, string> = {
+  bullish: '看多',
+  bearish: '看空',
+  neutral: '中性',
+};
+
+function contentTitle(row: ContentItem): string {
+  if (row.title?.trim()) return row.title;
+  return `${row.displayType} · ${row.platformContentId}`;
+}
+
 const ContentQueuePage = () => {
   const [rows, setRows] = useState<ContentItem[]>([]);
   const [creators, setCreators] = useState<Creator[]>([]);
@@ -83,6 +122,8 @@ const ContentQueuePage = () => {
   const [creatorId, setCreatorId] = useState<string>('');
   const [page, setPage] = useState(1);
   const [actionId, setActionId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<ContentDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -170,6 +211,19 @@ const ContentQueuePage = () => {
       setError(getSignalApiErrorMessage(err));
     } finally {
       setActionId(null);
+    }
+  };
+
+  const openDetail = async (id: number) => {
+    try {
+      setDetailLoading(true);
+      const data = await signalApi.getContent(id);
+      setDetail(data as ContentDetail);
+    } catch (err) {
+      console.error(err);
+      setError(getSignalApiErrorMessage(err));
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -270,7 +324,13 @@ const ContentQueuePage = () => {
                     </td>
                     <td className="px-4 py-3 text-foreground">{row.creatorName}</td>
                     <td className="max-w-xs px-4 py-3 text-foreground">
-                      <div className="line-clamp-2">{row.title || '（无标题）'}</div>
+                      <button
+                        type="button"
+                        className="line-clamp-2 text-left text-cyan hover:underline"
+                        onClick={() => void openDetail(row.id)}
+                      >
+                        {contentTitle(row)}
+                      </button>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-secondary-text">{row.displayType}</td>
                     <td className="px-4 py-3">
@@ -354,6 +414,166 @@ const ContentQueuePage = () => {
           </div>
         </div>
       </Card>
+      {(detail || detailLoading) && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setDetail(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl rounded-2xl border border-border bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setDetail(null)}
+              className="absolute right-4 top-4 rounded-lg p-1 text-secondary-text hover:bg-hover hover:text-foreground"
+              aria-label="关闭"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {detailLoading ? (
+              <div className="py-16 text-center text-secondary-text">加载中…</div>
+            ) : detail ? (
+              <div className="space-y-5">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    {detail.title || `${detail.display_type} · ${detail.platform_content_id}`}
+                  </h2>
+                  <p className="mt-1 text-xs text-secondary-text">
+                    {detail.creator_name} · {detail.display_type} · {detail.status}
+                    {detail.url ? (
+                      <>
+                        {' · '}
+                        <a href={detail.url} target="_blank" rel="noopener noreferrer" className="text-cyan hover:underline">
+                          原始链接
+                        </a>
+                      </>
+                    ) : null}
+                  </p>
+                </div>
+
+                {detail.text ? (
+                  <section>
+                    <h3 className="mb-1.5 text-sm font-medium text-foreground">原始正文</h3>
+                    <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded-xl border border-border/60 bg-muted/30 p-3 text-xs leading-relaxed text-foreground">
+                      {detail.text}
+                    </pre>
+                  </section>
+                ) : null}
+
+                {detail.transcripts.length > 0 ? (
+                  <section>
+                    <h3 className="mb-1.5 text-sm font-medium text-foreground">字幕 / 转录</h3>
+                    <div className="space-y-2">
+                      {detail.transcripts.map((t) => (
+                        <div key={t.id} className="rounded-xl border border-border/60 bg-muted/30 p-3">
+                          <div className="mb-1 flex items-center gap-2 text-xs text-secondary-text">
+                            <span className="rounded bg-muted px-1.5 py-0.5 font-medium">{t.source}</span>
+                            <span className={cn(
+                              'rounded px-1.5 py-0.5',
+                              t.quality === 'good' ? 'bg-emerald-500/15 text-emerald-600' :
+                              t.quality === 'summarized' ? 'bg-cyan/15 text-cyan' :
+                              'bg-amber-500/15 text-amber-700'
+                            )}>
+                              {t.quality}
+                            </span>
+                          </div>
+                          <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+                            {t.text}
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                {detail.media.length > 0 ? (
+                  <section>
+                    <h3 className="mb-1.5 text-sm font-medium text-foreground">图片 / 媒体</h3>
+                    <div className="space-y-2">
+                      {detail.media.map((m) => (
+                        <div key={m.id} className="rounded-xl border border-border/60 bg-muted/30 p-3">
+                          <p className="mb-1 text-xs text-secondary-text">
+                            {m.media_type}
+                            {m.url ? (
+                              <>
+                                {' · '}
+                                <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-cyan hover:underline">
+                                  查看
+                                </a>
+                              </>
+                            ) : null}
+                          </p>
+                          {m.ocr_text ? (
+                            <pre className="max-h-32 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+                              {m.ocr_text}
+                            </pre>
+                          ) : (
+                            <span className="text-xs text-muted-text">无 OCR 文本</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                {detail.mentions.length > 0 ? (
+                  <section>
+                    <h3 className="mb-1.5 text-sm font-medium text-foreground">
+                      提取的信号 ({detail.mentions.length})
+                    </h3>
+                    <div className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/30">
+                      {detail.mentions.map((m) => (
+                        <div key={m.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 px-3 py-2">
+                          <span className="font-medium text-foreground">{m.asset_name}</span>
+                          {m.asset_code ? (
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-secondary-text">
+                              {m.asset_code}
+                            </span>
+                          ) : null}
+                          <span className={cn(
+                            'rounded px-1.5 py-0.5 text-xs font-medium',
+                            m.sentiment === 'bullish' ? 'bg-emerald-500/15 text-emerald-600' :
+                            m.sentiment === 'bearish' ? 'bg-red-500/15 text-red-600' :
+                            'bg-zinc-500/15 text-zinc-600'
+                          )}>
+                            {SENTIMENT_LABEL[m.sentiment] ?? m.sentiment}
+                          </span>
+                          <span className="text-xs text-secondary-text">
+                            置信度 {(m.confidence * 100).toFixed(0)}%
+                          </span>
+                          {m.reasoning ? (
+                            <p className="w-full text-xs leading-relaxed text-secondary-text">{m.reasoning}</p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ) : (
+                  <section>
+                    <h3 className="mb-1.5 text-sm font-medium text-foreground">提取的信号</h3>
+                    <p className="text-xs text-secondary-text">暂无提取结果</p>
+                  </section>
+                )}
+
+                {(detail.failure_stage || detail.failure_reason) ? (
+                  <section>
+                    <h3 className="mb-1.5 text-sm font-medium text-red-600 dark:text-red-400">失败信息</h3>
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-xs text-foreground">
+                      {detail.failure_stage ? <p>阶段: {detail.failure_stage}</p> : null}
+                      {detail.failure_reason ? <p>原因: {detail.failure_reason}</p> : null}
+                      {detail.suggested_action ? <p>建议: {detail.suggested_action}</p> : null}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

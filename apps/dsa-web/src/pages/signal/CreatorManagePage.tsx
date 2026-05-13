@@ -199,6 +199,7 @@ const CreatorManagePage = () => {
             <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-secondary-text">
               <tr>
                 <th className="px-4 py-3 font-medium">名称</th>
+                <th className="px-4 py-3 font-medium">UID</th>
                 <th className="px-4 py-3 font-medium">平台</th>
                 <th className="px-4 py-3 font-medium">启用状态</th>
                 <th className="px-4 py-3 font-medium">分类</th>
@@ -211,13 +212,13 @@ const CreatorManagePage = () => {
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-secondary-text">
+                  <td colSpan={9} className="px-4 py-12 text-center text-secondary-text">
                     加载中…
                   </td>
                 </tr>
               ) : creators.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-secondary-text">
+                  <td colSpan={9} className="px-4 py-12 text-center text-secondary-text">
                     暂无 UP主，请点击「新增」添加
                   </td>
                 </tr>
@@ -225,6 +226,7 @@ const CreatorManagePage = () => {
                 creators.map((c) => (
                   <tr key={c.id} className="bg-card/40 hover:bg-muted/25">
                     <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-secondary-text">{c.platformUid}</td>
                     <td className="px-4 py-3 text-secondary-text">
                       <span className="rounded-lg bg-muted px-2 py-0.5 text-xs">{c.platform}</span>
                     </td>
